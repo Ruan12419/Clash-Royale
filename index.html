@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash Royale API</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        img {
+            height: 250px;
+            width: 250px;
+        }
+        table {
+            border: solid black;
+            border-width: 5px;
+            margin: 30px;
+        }
+        #cardList table tbody th,
+        #cardList table tbody td {
+            border: solid black;
+            border-width: 2px;
+        }
+    </style>
+</head>
+<body>
+    <button type="button" id="getCards">Ver Cards</button>
+    <div id="cardList"></div>
+
+    <script>
+        $(document).ready(function() {
+            $('#getCards').on('click', function () {
+                $.ajax({
+                    url: 'cards',
+                    type: 'get',
+                    success: function (response) {
+                        console.log(response);
+                        let cards = response;
+                        let cardList = `
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Id</th>
+                                <th>Max Level</th>
+                                <th>Rarity</th>
+                                <th>Elixir Cost</th>
+                                <th>Icon</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                        `;
+
+                        console.log(cards);
+
+                        cards.forEach(card => {
+                        let iconEvolution = card.iconUrls.evolutionMedium ? `<img src='${card.iconUrls.evolutionMedium}' />` : '';
+                        cardList += `
+                            <tr>
+                            <td>${card.name}</td>
+                            <td>${card.id}</td>
+                            <td>${card.maxLevel}</td>
+                            <td>${card.rarity}</td>
+                            <td>${card.elixirCost}</td>
+                            <td>
+                                <img src='${card.iconUrls.medium}' />
+                                ${iconEvolution}
+                            </td>
+                            </tr>
+                        `;
+                        });
+
+                        cardList += `
+                            </tbody>
+                        </table>
+                        `;
+
+                        $('#cardList').html(cardList);
+
+                        if (response.status !== 'success') {
+                            //alert(response.mssg);
+                        }
+                    },
+                    error: function (error) {
+                        //alert('Unable to get cards');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
