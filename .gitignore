@@ -1,2 +1,3 @@
-# dependencies
-/node_modules
+/.venv
+/Backup
+/__pycache__

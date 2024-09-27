@@ -1,0 +1,181 @@
+from flask import Flask, jsonify, send_from_directory
+from pymongo import MongoClient, UpdateOne
+import requests
+from config import MONGO_URI, DB_NAME, API_URL, API_KEY
+
+app = Flask(__name__)
+
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+
+def get_clash_royale_cards_from_api():
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    response = requests.get(f"{API_URL}/cards", headers=headers)
+    if response.status_code == 200:
+        return response.json().get('items', [])
+    else:
+        print("Erro ao buscar os dados da API:", response.status_code)
+        return []
+
+def get_clash_royale_cards_from_db():
+    try:
+        cards = list(db['cards'].find())
+        for card in cards:
+            card.pop('_id', None)
+        return cards
+    except Exception as e:
+        print(f"Erro ao buscar os cards do banco de dados: {e}")
+        return []
+
+def insert_or_update_cards(cards):
+    operations = []
+    for card in cards:
+        operations.append(
+            UpdateOne(
+                {'name': card['name']},
+                {'$set': card},
+                upsert=True
+            )
+        )
+    if operations:
+        db['cards'].bulk_write(operations)
+
+def get_player_battles(player_tag):
+    url = f"{API_URL}/players/%23{player_tag}/battlelog"
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Erro ao buscar o histórico de batalhas do jogador {player_tag}: {response.status_code}")
+        return None
+
+def insert_player_battles_to_db(player_tag):
+    battles = get_player_battles(player_tag)
+    if battles:
+        operations = []
+        for battle in battles:
+            operations.append(
+                UpdateOne(
+                    {'battleTime': battle['battleTime'], 'team.tag': battle['team'][0]['tag']},
+                    {'$set': battle},
+                    upsert=True
+                )
+            )
+        try:
+            db['battles'].bulk_write(operations)
+            print(f"Batalhas do jogador {player_tag} inseridas/atualizadas no banco de dados com sucesso!")
+        except Exception as e:
+            print(f"Erro ao inserir batalhas no banco de dados: {e}")
+    else:
+        print(f"Nenhuma batalha encontrada para o jogador {player_tag}.")
+
+def get_player_stats(player_tag):
+    url = f"{API_URL}/players/%23{player_tag}"
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Erro ao buscar as estatísticas do jogador {player_tag}: {response.status_code}")
+        return {}
+
+def insert_player_stats_to_db(player_tag):
+    stats = get_player_stats(player_tag)
+    if stats:
+        try:
+            db['player_stats'].update_one(
+                {'tag': stats['tag']},
+                {'$set': stats},
+                upsert=True
+            )
+            print(f"Estatísticas do jogador {player_tag} inseridas/atualizadas no banco de dados com sucesso!")
+        except Exception as e:
+            print(f"Erro ao inserir as estatísticas no banco de dados: {e}")
+    else:
+        print(f"Nenhuma estatística encontrada para o jogador {player_tag}.")
+
+def get_most_used_cards():
+    pipeline = [
+        {"$unwind": "$team"},
+        {"$unwind": "$team.cards"},
+        {"$group": {"_id": "$team.cards.name", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    result = list(db['battles'].aggregate(pipeline))
+    return result
+
+def get_card_win_rate(card_name):
+    pipeline = [
+        {"$unwind": "$team"},
+        {"$unwind": "$team.cards"},
+        {"$match": {"team.cards.name": card_name}},
+        {"$group": {
+            "_id": "$team.cards.name",
+            "total_battles": {"$sum": 1},
+            "wins": {"$sum": {"$cond": [{"$eq": ["$team.crowns", 3]}, 1, 0]}}
+        }},
+        {"$project": {
+            "card_name": "$_id",
+            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$divide": ["$wins", "$total_battles"]}]},
+            "total_battles": 1,
+            "wins": 1
+        }}
+    ]
+    result = list(db['battles'].aggregate(pipeline))
+    return result
+
+def get_player_win_stats(player_tag):
+    return db['player_stats'].find_one({"tag": f"#{player_tag}"}, {"wins": 1, "losses": 1, "battle_count": 1})
+
+@app.route('/')
+def index():
+    return send_from_directory('templates', 'index.html')
+
+
+@app.route('/get-cards', methods=['GET'])
+def get_cards():
+    cards = get_clash_royale_cards_from_db()
+    if not cards:
+        return jsonify({"error": "Nenhuma carta encontrada no banco de dados"}), 404
+    return jsonify(cards), 200
+
+@app.route('/insert-cards', methods=['GET'])
+def insert_cards():
+    cards = get_clash_royale_cards_from_api()
+    if not cards:
+        return jsonify({"error": "Não foi possível buscar os dados da API"}), 500
+    insert_or_update_cards(cards)
+    return jsonify({"message": "Cartas inseridas/atualizadas com sucesso!"}), 200
+
+@app.route('/insert-battles/<player_tag>', methods=['GET'])
+def insert_battles(player_tag):
+    insert_player_battles_to_db(player_tag)
+    return jsonify({"message": f"Batalhas do jogador {player_tag} inseridas/atualizadas com sucesso!"}), 200
+
+@app.route('/insert-stats/<player_tag>', methods=['GET'])
+def insert_stats(player_tag):
+    insert_player_stats_to_db(player_tag)
+    return jsonify({"message": f"Estatísticas do jogador {player_tag} inseridas/atualizadas com sucesso!"}), 200
+
+@app.route('/get-most-used-cards', methods=['GET'])
+def most_used_cards():
+    result = get_most_used_cards()
+    return jsonify(result), 200
+
+@app.route('/get-card-win-rate/<card_name>', methods=['GET'])
+def card_win_rate(card_name):
+    result = get_card_win_rate(card_name)
+    return jsonify(result), 200
+
+@app.route('/get-player-stats/<player_tag>', methods=['GET'])
+def player_stats(player_tag):
+    result = get_player_win_stats(player_tag)
+    if result:
+        return jsonify(result), 200
+    else:
+        return jsonify({"error": "Estatísticas não encontradas para o jogador."}), 404
+
+if __name__ == '__main__':
+    app.run(debug=True)

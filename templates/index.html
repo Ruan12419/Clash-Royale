@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash Royale Balanceamento</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+
+<body>
+    <div id="app" class="container mt-5">
+        <h1>Clash Royale - Dados de Cartas e Estatísticas</h1>
+
+        <button class="btn btn-primary mb-3" @click="fetchCards">Atualizar Cartas</button>
+        <button class="btn btn-secondary mb-3" @click="fetchBattles">Atualizar Batalhas</button>
+        <button class="btn btn-info mb-3" @click="fetchPlayerStats">Buscar Estatísticas do Jogador</button>
+        <button class="btn btn-warning mb-3" @click="fetchMostUsedCards">Cartas Mais Usadas</button>
+
+        <h2>Cartas</h2>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Elixir</th>
+                    <th>Raridade</th>
+                    <th>Icon</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="card in paginatedCards" :key="card.name">
+                    <td>{{ card.name }}</td>
+                    <td>{{ card.elixirCost }}</td>
+                    <td>{{ card.rarity }}</td>
+                    <td>
+                        <img :src="card.iconUrls.medium" height="100" width="100" />
+                        <img v-if="card.iconUrls.evolutionMedium" :src="card.iconUrls.evolutionMedium" height="100" width="100" />
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <button @click="prevPage" :disabled="currentPage === 1" class="btn btn-secondary">Anterior</button>
+            <span>Página {{ currentPage }} de {{ totalPages }}</span>
+            <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-secondary">Próxima</button>
+        </div>
+
+
+        <h2>Estatísticas do Jogador</h2>
+        <div v-if="playerStats">
+            <p><strong>Vitórias:</strong> {{ playerStats.wins }}</p>
+            <p><strong>Derrotas:</strong> {{ playerStats.losses }}</p>
+            <p><strong>Batalhas Totais:</strong> {{ playerStats.battle_count }}</p>
+        </div>
+
+        <h2>Cartas Mais Usadas</h2>
+        <ul v-if="mostUsedCards.length > 0">
+            <li v-for="card in mostUsedCards" :key="card._id">{{ card._id }} - Usado em {{ card.count }} batalhas</li>
+        </ul>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
