@@ -19,6 +19,36 @@
         <button class="btn btn-info mb-3" @click="fetchPlayerStats">Buscar Estatísticas do Jogador</button>
         <button class="btn btn-warning mb-3" @click="fetchMostUsedCards">Cartas Mais Usadas</button>
 
+        <h2>Estatísticas do Jogador</h2>
+        <div v-if="playerStats">
+            <p><strong>Vitórias:</strong> {{ playerStats.wins }}</p>
+            <p><strong>Derrotas:</strong> {{ playerStats.losses }}</p>
+            <p><strong>Batalhas Totais:</strong> {{ playerStats.battleCount }}</p>
+        </div>
+
+        <h2>Cartas Mais Usadas</h2>
+        <ul v-if="mostUsedCards.length > 0">
+            <li v-for="card in mostUsedCards" :key="card._id">{{ card._id }} - Usado em {{ card.count }} batalhas</li>
+        </ul>
+
+        <h2>Pesquisar e Ordenar Cartas</h2>
+
+        <input type="text" v-model="searchQuery" placeholder="Pesquisar carta por nome..." class="form-control mb-3">
+
+        <select v-model="sortOption" class="form-control mb-3">
+            <option value="none">Sem Ordenação</option>
+            <option value="winRateAsc">Ordenar por Menor Taxa de Vitória</option>
+            <option value="winRateDesc">Ordenar por Maior Taxa de Vitória</option>
+        </select>
+
+        <h2>Filtrar por Intervalo de Tempo</h2>
+
+        <label for="startTime">Data de Início:</label>
+        <input type="datetime-local" v-model="startTime" class="form-control mb-3">
+
+        <label for="endTime">Data de Fim:</label>
+        <input type="datetime-local" v-model="endTime" class="form-control mb-3">
+
         <h2>Cartas</h2>
         <table class="table table-bordered">
             <thead>
@@ -27,6 +57,8 @@
                     <th>Elixir</th>
                     <th>Raridade</th>
                     <th>Icon</th>
+                    <th>Taxa de Vitória</th>
+                    <th>Ação</th>
                 </tr>
             </thead>
             <tbody>
@@ -35,8 +67,11 @@
                     <td>{{ card.elixirCost }}</td>
                     <td>{{ card.rarity }}</td>
                     <td>
-                        <img :src="card.iconUrls.medium" height="100" width="100" />
-                        <img v-if="card.iconUrls.evolutionMedium" :src="card.iconUrls.evolutionMedium" height="100" width="100" />
+                        <img :src="card.iconUrls.medium" height="80" width="80" />
+                    </td>
+                    <td>{{ winRates[card.name] !== undefined ? `${(winRates[card.name] * 1).toFixed(2)}%` : "Sem dados" }}</td>
+                    <td>
+                        <button @click="fetchCardWinRateInTimeRange(card.name)" class="btn btn-info">Ver Taxa de Vitória no Intervalo</button>
                     </td>
                 </tr>
             </tbody>
@@ -47,19 +82,6 @@
             <span>Página {{ currentPage }} de {{ totalPages }}</span>
             <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-secondary">Próxima</button>
         </div>
-
-
-        <h2>Estatísticas do Jogador</h2>
-        <div v-if="playerStats">
-            <p><strong>Vitórias:</strong> {{ playerStats.wins }}</p>
-            <p><strong>Derrotas:</strong> {{ playerStats.losses }}</p>
-            <p><strong>Batalhas Totais:</strong> {{ playerStats.battle_count }}</p>
-        </div>
-
-        <h2>Cartas Mais Usadas</h2>
-        <ul v-if="mostUsedCards.length > 0">
-            <li v-for="card in mostUsedCards" :key="card._id">{{ card._id }} - Usado em {{ card.count }} batalhas</li>
-        </ul>
     </div>
 
     <script src="/static/js/app.js"></script>

@@ -1,7 +1,9 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, Response, request
 from pymongo import MongoClient, UpdateOne
 import requests
 from config import MONGO_URI, DB_NAME, API_URL, API_KEY
+from bson import json_util
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -55,6 +57,11 @@ def insert_player_battles_to_db(player_tag):
     if battles:
         operations = []
         for battle in battles:
+            battle_time_str = battle['battleTime']
+            battle_time = datetime.strptime(battle_time_str, '%Y%m%dT%H%M%S.%fZ')
+
+            battle['battleTime'] = battle_time
+
             operations.append(
                 UpdateOne(
                     {'battleTime': battle['battleTime'], 'team.tag': battle['team'][0]['tag']},
@@ -118,7 +125,8 @@ def get_card_win_rate(card_name):
         }},
         {"$project": {
             "card_name": "$_id",
-            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$divide": ["$wins", "$total_battles"]}]},
+            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 10]}]},
+            "total_battles": 1,
             "total_battles": 1,
             "wins": 1
         }}
@@ -127,7 +135,35 @@ def get_card_win_rate(card_name):
     return result
 
 def get_player_win_stats(player_tag):
-    return db['player_stats'].find_one({"tag": f"#{player_tag}"}, {"wins": 1, "losses": 1, "battle_count": 1})
+    result = db['player_stats'].find_one({"tag": f"#{player_tag}"}, {"wins": 1, "losses": 1, "battleCount": 1})
+    if result:
+        result.pop('_id', None)
+    return result
+
+def get_card_win_rate_in_time_range(card_name, start_time, end_time):
+    pipeline = [
+        {"$unwind": "$team"},
+        {"$unwind": "$team.cards"},
+        {"$match": {
+            "team.cards.name": card_name,
+            "battleTime": {"$gte": start_time, "$lte": end_time}
+        }},
+        {"$group": {
+            "_id": "$team.cards.name",
+            "total_battles": {"$sum": 1},
+            "wins": {"$sum": {"$cond": [{"$eq": ["$team.crowns", 3]}, 1, 0]}}
+        }},
+        {"$project": {
+            "card_name": "$_id",
+            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$divide": ["$wins", "$total_battles"]}]},
+            "total_battles": 1,
+            "wins": 1
+        }}
+    ]
+    result = list(db['battles'].aggregate(pipeline))
+    return result
+
+
 
 @app.route('/')
 def index():
@@ -173,9 +209,31 @@ def card_win_rate(card_name):
 def player_stats(player_tag):
     result = get_player_win_stats(player_tag)
     if result:
-        return jsonify(result), 200
+        return Response(json_util.dumps(result), mimetype='application/json')
     else:
         return jsonify({"error": "Estatísticas não encontradas para o jogador."}), 404
+
+@app.route('/get-card-win-rate-in-time-range/<card_name>', methods=['GET'])
+def card_win_rate_in_time_range(card_name):
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+
+    if not start_time or not end_time:
+        return jsonify({"error": "Os parâmetros start_time e end_time são obrigatórios."}), 400
+    
+    try:
+        start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        end_time = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+    except ValueError:
+        return jsonify({"error": "Formato de data inválido. Use o formato YYYY-MM-DDTHH:MM:SSZ."}), 400
+    
+    result = get_card_win_rate_in_time_range(card_name, start_time, end_time)
+    if result:
+        return jsonify(result), 200
+    else:
+        return jsonify({"error": "Nenhuma batalha encontrada para a carta e intervalo de tempo especificado."}), 200
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
