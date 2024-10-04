@@ -15,9 +15,14 @@
         <h1>Clash Royale - Dados de Cartas e Estatísticas</h1>
 
         <button class="btn btn-primary mb-3" @click="fetchCards">Atualizar Cartas</button>
-        <button class="btn btn-secondary mb-3" @click="fetchBattles">Atualizar Batalhas</button>
-        <button class="btn btn-info mb-3" @click="fetchPlayerStats">Buscar Estatísticas do Jogador</button>
         <button class="btn btn-warning mb-3" @click="fetchMostUsedCards">Cartas Mais Usadas</button>
+        
+        <h2>Adicionar Informações do Jogador</h2>
+        
+        <input type="text" v-model="playerTag" placeholder="TAG do Jogador" class="form-control mb-3">
+        <button class="btn btn-primary mb-3" @click="fetchPlayer">Adicionar Jogador</button>
+        <button class="btn btn-info mb-3" v-model="playerTag" @click="fetchPlayerStats">Buscar Estatísticas do Jogador</button>
+        <button class="btn btn-secondary mb-3" v-model="playerTag" @click="fetchBattles">Atualizar Batalhas</button>
 
         <h2>Estatísticas do Jogador</h2>
         <div v-if="playerStats">

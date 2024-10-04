@@ -185,6 +185,11 @@ def insert_cards():
     insert_or_update_cards(cards)
     return jsonify({"message": "Cartas inseridas/atualizadas com sucesso!"}), 200
 
+@app.route('/get-battles', methods=['GET'])
+def get_battles():
+    battles = list(db['battles'].find({}, {'_id': 0}))
+    return jsonify(battles)
+
 @app.route('/insert-battles/<player_tag>', methods=['GET'])
 def insert_battles(player_tag):
     insert_player_battles_to_db(player_tag)

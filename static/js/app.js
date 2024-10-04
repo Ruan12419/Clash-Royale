@@ -9,6 +9,7 @@ new Vue({
         currentPage: 1,
         itemsPerPage: 5,
         searchQuery: "",
+        playerTag: "",
         sortOption: "none", 
         startTime: '',
         endTime: ''
@@ -60,7 +61,7 @@ new Vue({
                 });
         },
         fetchBattles() {
-            const playerTag = 'PUQQGVU80';
+            const playerTag = this.playerTag;
             axios.get(`/insert-battles/${playerTag}`)
                 .then(() => {
                     axios.get('/get-battles')
@@ -75,8 +76,16 @@ new Vue({
                     console.error('Erro ao atualizar batalhas:', error);
                 });
         },
+        fetchPlayer() {
+            const playerTag = this.playerTag;
+            axios.get(`/insert-stats/${playerTag}`)
+                .then({})
+                .catch(error => {
+                    console.error('Erro ao buscar estatísticas do jogador:', error);
+                });
+        },
         fetchPlayerStats() {
-            const playerTag = 'PUQQGVU80';
+            const playerTag = this.playerTag;
             axios.get(`/get-player-stats/${playerTag}`)
                 .then(response => {
                     this.playerStats = response.data;
@@ -114,7 +123,7 @@ new Vue({
                     .then(response => {
                         const cardWinRate = response.data[0];
                         if (cardWinRate) {
-                            this.$set(this.winRates, card.name, (cardWinRate.win_rate * 100).toFixed(2));
+                            this.$set(this.winRates, card.name, (cardWinRate.win_rate * 10).toFixed(2));
                         } else {
                             this.$set(this.winRates, card.name, "Sem dados");
                         }
