@@ -10,11 +10,18 @@ new Vue({
         itemsPerPage: 5,
         searchQuery: "",
         playerTag: "",
-        sortOption: "none", 
+        sortOption: "none",
         startTime: '',
-        endTime: '', 
-        percentage: 60, 
+        endTime: '',
+        percentage: 60,
+        isDropdownVisible: false,
         decks: [],
+        combo: [],
+        losses: -1,
+        cardName: '',
+        trophyPercentageDifference: null,
+        wins: [],
+        showWinsSection: false,
     },
     computed: {
         totalPages() {
@@ -26,7 +33,7 @@ new Vue({
             return this.filteredAndSortedCards.slice(start, end);
         },
         filteredAndSortedCards() {
-            let filteredCards = this.cards.filter(card => 
+            let filteredCards = this.cards.filter(card =>
                 card.name.toLowerCase().includes(this.searchQuery.toLowerCase())
             );
             if (this.sortOption === "winRateAsc") {
@@ -51,11 +58,22 @@ new Vue({
         }
     },
     methods: {
+        insertCards() {
+            axios.get('/insert-cards')
+                .then(response => {
+                    this.cards = response.data;
+                    this.currentPage = 1;
+                    this.fetchWinRatesForAllCards();
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar cartas:', error);
+                });
+        },
         fetchCards() {
             axios.get('/get-cards')
                 .then(response => {
                     this.cards = response.data;
-                    this.currentPage = 1; 
+                    this.currentPage = 1;
                     this.fetchWinRatesForAllCards();
                 })
                 .catch(error => {
@@ -108,7 +126,7 @@ new Vue({
         fetchCardWinRate(cardName) {
             axios.get(`/get-card-win-rate/${cardName}`)
                 .then(response => {
-                    const cardWinRate = response.data[0]; 
+                    const cardWinRate = response.data[0];
                     if (cardWinRate) {
                         alert(`A taxa de vitória da carta ${cardName} é ${(cardWinRate.win_rate * 100).toFixed(2)}% em ${cardWinRate.total_battles} batalhas.`);
                     } else {
@@ -148,18 +166,18 @@ new Vue({
                     end_time: `${this.endTime}Z`
                 }
             })
-            .then(response => {
-                const cardWinRate = response.data[0];
-                if (cardWinRate) {
-                    alert(`A taxa de vitória da carta ${cardName} é ${(cardWinRate.win_rate * 100).toFixed(2)}% em ${cardWinRate.total_battles} batalhas.`);
-                } else {
-                    alert(`Nenhuma informação de taxa de vitória encontrada para a carta ${cardName} no intervalo de tempo selecionado.`);
-                }
-            })
-            .catch(error => {
-                console.error(`Erro ao buscar a taxa de vitória da carta ${cardName} no intervalo de tempo:`, error);
-            });
-        }, 
+                .then(response => {
+                    const cardWinRate = response.data[0];
+                    if (cardWinRate) {
+                        alert(`A taxa de vitória da carta ${cardName} é ${(cardWinRate.win_rate * 100).toFixed(2)}% em ${cardWinRate.total_battles} batalhas.`);
+                    } else {
+                        alert(`Nenhuma informação de taxa de vitória encontrada para a carta ${cardName} no intervalo de tempo selecionado.`);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Erro ao buscar a taxa de vitória da carta ${cardName} no intervalo de tempo:`, error);
+                });
+        },
         getDecks() {
             if (!this.startTime || !this.endTime) {
                 alert("Por favor, insira o intervalo de tempo.");
@@ -167,19 +185,71 @@ new Vue({
             }
 
             axios.get(`/get-decks-win-in-timerange`, {
-              params: {
-                percentage: this.percentage,
-                start_time: this.startTime,
-                end_time: this.endTime
-              }
+                params: {
+                    percentage: this.percentage,
+                    start_time: `${this.startTime}Z`,
+                    end_time: `${this.endTime}Z`
+                }
             })
-            .then(response => {
-              this.decks = response.data;
-            })
-            .catch(error => {
-              console.error('Erro ao buscar decks:', error);
-            });
-        }, 
+                .then(response => {
+                    this.decks = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar decks:', error);
+                });
+        },
+        toggleDropdown() {
+            this.isDropdownVisible = !this.isDropdownVisible;
+        },
+        getLosses() {
+            if (!this.startTime || !this.endTime) {
+                alert('Por favor, selecione as datas de início e fim.');
+                return;
+            }
+
+            const startTime = `${this.startTime}Z`;
+            const endTime = `${this.endTime}Z`;
+
+            if (this.combo.length === 0) {
+                alert('Por favor, selecione pelo menos uma carta.');
+                return;
+            }
+
+            const url = `/get-losses-in-timerange?combo=${this.combo.join(',')}&start_time=${startTime}&end_time=${endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.losses = response.data.losses;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar derrotas:', error);
+                    alert('Ocorreu um erro ao buscar as derrotas.');
+                });
+        },
+        toggleWinsSection() {
+            this.showWinsSection = !this.showWinsSection;
+        },
+        async getWinsWithConditions() {
+            if (!this.cardName || this.trophyPercentageDifference === null) {
+                alert('Por favor, preencha todos os campos.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/get-wins-with-conditions?card_name=${encodeURIComponent(this.cardName)}&trophy_percentage_difference=${this.trophyPercentageDifference}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    this.wins = data;
+                } else {
+                    alert(data.error || 'Erro ao buscar vitórias.');
+                    this.wins = [];
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao buscar vitórias.');
+            }
+        },
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;

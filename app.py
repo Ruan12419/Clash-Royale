@@ -3,7 +3,7 @@ from pymongo import MongoClient, UpdateOne
 import requests
 from config import MONGO_URI, DB_NAME, API_URL, API_KEY
 from bson import json_util
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -200,6 +200,64 @@ def get_decks_with_win_rate_above_range(percentage, start_time, end_time):
     return result
 
 
+def get_losses(combo, start_time, end_time):
+    query = {
+        'battleTime': {'$gte': start_time, '$lte': end_time},
+        'team.cards.name': {'$in': combo}, 
+        'team.trophyChange': {'$lt': 0} 
+    }
+    losses_count = db['battles'].count_documents(query)
+    return losses_count
+
+
+def get_wins_with_conditions(card_name, trophy_percentage_difference):
+    wins = list(db['battles'].aggregate([
+        {
+            "$match": {
+                "team.cards.name": card_name,
+                "team.trophyChange": {'$gt': 0}
+            }
+        },
+        {
+            "$lookup": {
+                "from": "player_stats",
+                "localField": "team.playerTag", 
+                "foreignField": "tag",
+                "as": "player_info"
+            }
+        },
+        {
+            "$unwind": "$player_info"
+        },
+        {
+            "$project": {
+                "trophyChange": 1,
+                "playerTrophies": "$player_info.leagueStatistics.currentSeason.trophies",
+                "opponentTrophies": {"$subtract": ["$player_info.leagueStatistics.currentSeason.trophies", "$team.trophyChange"]}
+            }
+        },
+        {
+            "$match": {
+                "$expr": {
+                    "$and": [
+                        {
+                            "$gt": [
+                                {"$subtract": ["$playerTrophies", "$opponentTrophies"]},
+                                {"$multiply": ["$opponentTrophies", trophy_percentage_difference]}
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ]))
+
+    return len(wins)
+
+
+
+
+
 @app.route('/')
 def index():
     return send_from_directory('templates', 'index.html')
@@ -286,6 +344,42 @@ def get_decks():
     decks = get_decks_with_win_rate_above_range(percentage, start_time, end_time)
 
     return jsonify(decks)
+
+
+@app.route('/get-losses-in-timerange', methods=['GET'])
+def get_losses_in_timerange():
+    try:
+        combo = request.args.get('combo').split(',')
+        start_time = request.args.get('start_time')
+        end_time = request.args.get('end_time')
+
+        start_time = datetime.fromisoformat(start_time)
+        end_time = datetime.fromisoformat(end_time)
+        
+        losses_count = get_losses(combo, start_time, end_time)
+
+        return jsonify({'losses': losses_count})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/get-wins-with-conditions', methods=['GET'])
+def wins_with_conditions():
+    card_name = request.args.get('card_name')
+    trophy_percentage_difference = float(request.args.get('trophy_percentage_difference'))
+
+    if not card_name or trophy_percentage_difference is None:
+        return jsonify({"error": "Os parâmetros card_name e trophy_percentage_difference são obrigatórios."}), 400
+    
+    try:
+        trophy_percentage_difference = float(trophy_percentage_difference)
+        trophy_difference_factor = (100 - trophy_percentage_difference) / 100
+
+        wins = get_wins_with_conditions(card_name, trophy_difference_factor)
+        return jsonify(wins), 200
+    except ValueError:
+        return jsonify({"error": "O parâmetro trophy_percentage_difference deve ser um número."}), 400
 
 
 
