@@ -164,6 +164,41 @@ def get_card_win_rate_in_time_range(card_name, start_time, end_time):
     return result
 
 
+def get_decks_with_win_rate_above_range(percentage, start_time, end_time):
+    pipeline = [
+        {"$match": {
+            "battleTime": {"$gte": start_time, "$lte": end_time}
+        }},
+        {"$unwind": "$team"},
+        {"$group": {
+            "_id": {
+                "deck": "$team.cards.name",
+                "player": "$team.tag"
+            },
+            "total_battles": {"$sum": 1},
+            "wins": {"$sum": {"$cond": [{"$eq": ["$team.crowns", 3]}, 1, 0]}}
+        }},
+        {"$project": {
+            "deck": "$_id.deck",
+            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 100]}]},
+            "total_battles": 1,
+            "wins": 1
+        }},
+        {"$match": {
+            "win_rate": {"$gt": percentage}
+        }},
+        {"$group": {
+            "_id": "$deck",
+            "total_battles": {"$sum": "$total_battles"},
+            "wins": {"$sum": "$wins"},
+            "win_rate": {"$avg": "$win_rate"}
+        }},
+        {"$sort": {"win_rate": -1}}
+    ]
+
+    result = list(db['battles'].aggregate(pipeline))
+    return result
+
 
 @app.route('/')
 def index():
@@ -237,6 +272,20 @@ def card_win_rate_in_time_range(card_name):
         return jsonify(result), 200
     else:
         return jsonify({"error": "Nenhuma batalha encontrada para a carta e intervalo de tempo especificado."}), 200
+
+
+@app.route('/get-decks-win-in-timerange', methods=['GET'])
+def get_decks():
+    percentage = float(request.args.get('percentage'))
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+
+    start_time = datetime.fromisoformat(start_time)
+    end_time = datetime.fromisoformat(end_time)
+
+    decks = get_decks_with_win_rate_above_range(percentage, start_time, end_time)
+
+    return jsonify(decks)
 
 
 

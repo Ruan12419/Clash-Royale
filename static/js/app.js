@@ -12,7 +12,9 @@ new Vue({
         playerTag: "",
         sortOption: "none", 
         startTime: '',
-        endTime: ''
+        endTime: '', 
+        percentage: 60, 
+        decks: [],
     },
     computed: {
         totalPages() {
@@ -156,6 +158,26 @@ new Vue({
             })
             .catch(error => {
                 console.error(`Erro ao buscar a taxa de vitória da carta ${cardName} no intervalo de tempo:`, error);
+            });
+        }, 
+        getDecks() {
+            if (!this.startTime || !this.endTime) {
+                alert("Por favor, insira o intervalo de tempo.");
+                return;
+            }
+
+            axios.get(`/get-decks-win-in-timerange`, {
+              params: {
+                percentage: this.percentage,
+                start_time: this.startTime,
+                end_time: this.endTime
+              }
+            })
+            .then(response => {
+              this.decks = response.data;
+            })
+            .catch(error => {
+              console.error('Erro ao buscar decks:', error);
             });
         }, 
         nextPage() {

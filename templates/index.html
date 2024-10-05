@@ -36,16 +36,6 @@
             <li v-for="card in mostUsedCards" :key="card._id">{{ card._id }} - Usado em {{ card.count }} batalhas</li>
         </ul>
 
-        <h2>Pesquisar e Ordenar Cartas</h2>
-
-        <input type="text" v-model="searchQuery" placeholder="Pesquisar carta por nome..." class="form-control mb-3">
-
-        <select v-model="sortOption" class="form-control mb-3">
-            <option value="none">Sem Ordenação</option>
-            <option value="winRateAsc">Ordenar por Menor Taxa de Vitória</option>
-            <option value="winRateDesc">Ordenar por Maior Taxa de Vitória</option>
-        </select>
-
         <h2>Filtrar por Intervalo de Tempo</h2>
 
         <label for="startTime">Data de Início:</label>
@@ -54,6 +44,40 @@
         <label for="endTime">Data de Fim:</label>
         <input type="datetime-local" v-model="endTime" class="form-control mb-3">
 
+        <h2>Buscar Decks por Taxa de Vitórias</h2>
+        <label for="percentage">Porcentagem mínima de vitórias:</label>
+        <input type="number" v-model="percentage" id="percentage" />
+        <button @click="getDecks">Buscar Decks</button>
+        <table v-if="decks.length > 0" class="table table-bordered">
+            <thead>
+              <tr>
+                <th>Deck</th>
+                <th>Total de Batalhas</th>
+                <th>Vitórias</th>
+                <th>Taxa de Vitórias (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="deck in decks" :key="deck._id">
+                <td>{{ deck._id.join(', ') }}</td>
+                <td>{{ deck.total_battles }}</td>
+                <td>{{ deck.wins }}</td>
+                <td>{{ deck.win_rate.toFixed(2) }}%</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else>Nenhum deck encontrado.</p>
+          
+          <h2>Pesquisar e Ordenar Cartas</h2>
+
+          <input type="text" v-model="searchQuery" placeholder="Pesquisar carta por nome..." class="form-control mb-3">
+  
+          <select v-model="sortOption" class="form-control mb-3">
+              <option value="none">Sem Ordenação</option>
+              <option value="winRateAsc">Ordenar por Menor Taxa de Vitória</option>
+              <option value="winRateDesc">Ordenar por Maior Taxa de Vitória</option>
+          </select>
+        
         <h2>Cartas</h2>
         <table class="table table-bordered">
             <thead>
