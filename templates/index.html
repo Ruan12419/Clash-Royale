@@ -158,6 +158,71 @@
             <span>Página {{ currentPage }} de {{ totalPages }}</span>
             <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-secondary">Próxima</button>
         </div>
+        <h2>Combo de Cartas com Alta Taxa de Vitórias</h2>
+         <label for="comboSize">Tamanho do Combo (N):</label>
+         <input type="number" v-model="comboSize" class="form-control mb-3">
+ 
+         <label for="winRate">Porcentagem mínima de vitórias (Y%):</label>
+         <input type="number" v-model="winRate" class="form-control mb-3">
+ 
+         <label for="startTime">Data de Início:</label>
+         <input type="datetime-local" v-model="startTime" class="form-control mb-3">
+ 
+         <label for="endTime">Data de Fim:</label>
+         <input type="datetime-local" v-model="endTime" class="form-control mb-3">
+ 
+         <button class="btn btn-info mb-3" @click="fetchCardCombos">Buscar Combos</button>
+ 
+         <div v-if="cardCombos.length > 0">
+             <h3>Combos encontrados:</h3>
+             <ul>
+                 <li v-for="combo in cardCombos" :key="combo._id">{{ combo.cards.join(', ') }} - {{ combo.winRate }}% vitórias</li>
+             </ul>
+         </div>
+ 
+         <h2>Cartas com Maior Taxa de Derrota</h2>
+         <label for="defeatComboSize">Tamanho da Combinação:</label>
+         <input type="number" v-model="defeatComboSize" class="form-control mb-3">
+ 
+         <button class="btn btn-danger mb-3" @click="fetchHighDefeatCards">Buscar Combinações com Alta Taxa de Derrota</button>
+ 
+         <div v-if="highDefeatCards.length > 0">
+             <h3>Combinações com Alta Taxa de Derrota:</h3>
+             <ul>
+                 <li v-for="combo in highDefeatCards" :key="combo._id">{{ combo.cards.join(', ') }} - {{ combo.defeatRate }}% derrotas</li>
+             </ul>
+         </div>
+ 
+         <h2>Desempenho de Cartas Contra Oponentes Específicos</h2>
+         <label for="opponentType">Tipo de Oponente (ex: aéreo, defensivo):</label>
+         <input type="text" v-model="opponentType" class="form-control mb-3">
+ 
+         <button class="btn btn-secondary mb-3" @click="fetchCardPerformance">Buscar Desempenho</button>
+ 
+         <div v-if="cardPerformance.length > 0">
+             <h3>Desempenho das Cartas:</h3>
+             <ul>
+                 <li v-for="performance in cardPerformance" :key="performance._id">
+                     {{ performance.cards.join(', ') }} - {{ performance.performanceRate }}% contra {{ opponentType }}
+                 </li>
+             </ul>
+         </div>
+ 
+         <h2>Trending Cards (Taxa de Utilização ao Longo do Tempo)</h2>
+         <label for="trendStartTime">Data de Início:</label>
+         <input type="datetime-local" v-model="trendStartTime" class="form-control mb-3">
+ 
+         <label for="trendEndTime">Data de Fim:</label>
+         <input type="datetime-local" v-model="trendEndTime" class="form-control mb-3">
+ 
+         <button class="btn btn-success mb-3" @click="fetchTrendingCards">Buscar Cartas Tendência</button>
+ 
+         <div v-if="trendingCards.length > 0">
+             <h3>Cartas em Tendência:</h3>
+             <ul>
+                 <li v-for="card in trendingCards" :key="card._id">{{ card.name }} - Taxa de Utilização: {{ card.usageRate }}%</li>
+             </ul>
+         </div> 
     </div>
 
     <script src="/static/js/app.js"></script>
