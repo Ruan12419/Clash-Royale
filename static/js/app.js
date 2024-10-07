@@ -1,6 +1,19 @@
 new Vue({
     el: '#app',
     data: {
+        sections: {
+            cards: false,
+            playerInfo: false,
+            stats: false,
+            mostUsedCards: false, 
+            decks: false,
+            lossesSection: false,
+            winsSection: false,
+            highWin: false, 
+            highDefeat: false, 
+            cardPerformance: false, 
+            trendingCards: false
+        },
         cards: [],
         battles: [],
         playerStats: null,
@@ -20,8 +33,18 @@ new Vue({
         losses: -1,
         cardName: '',
         trophyPercentageDifference: null,
-        wins: [],
+        wins: -1,
         showWinsSection: false,
+        comboSize: 0,
+        winRate: .0,
+        cardCombos: [],
+        lossRate: .0,
+        highDefeatCards: [],
+        opponentCard: "",
+        cardPerformance: [],
+        opponentCardAll: "",
+        cardPerformanceAll: [],
+        trendingCards: []
     },
     computed: {
         totalPages() {
@@ -155,8 +178,7 @@ new Vue({
             });
         },
         fetchCardWinRateInTimeRange(cardName) {
-            if (!this.startTime || !this.endTime) {
-                alert("Por favor, insira o intervalo de tempo.");
+            if (this.checkDateInput()) {
                 return;
             }
 
@@ -202,8 +224,7 @@ new Vue({
             this.isDropdownVisible = !this.isDropdownVisible;
         },
         getLosses() {
-            if (!this.startTime || !this.endTime) {
-                alert('Por favor, selecione as datas de início e fim.');
+            if (this.checkDateInput()) {
                 return;
             }
 
@@ -250,6 +271,132 @@ new Vue({
                 alert('Erro ao buscar vitórias.');
             }
         },
+        fetchCardCombos() {
+            if (this.checkDateInput()) {
+                return;
+            }
+
+            const startTime = `${this.startTime}Z`;
+            const endTime = `${this.endTime}Z`;
+
+            if (this.comboSize === 0) {
+                alert('Por favor, digite o tamanho do combo.');
+                return;
+            }
+            if (this.winRate < 0.1) {
+                alert('Por favor, digite a porcentagem de vitórias.');
+                return;
+            }
+
+            const url = `/get-card-combos-win-rate?n=${this.comboSize}&percentage=${this.winRate}&start_time=${startTime}&end_time=${endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.cardCombos = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar combo:', error);
+                    alert('Ocorreu um erro ao buscar o combo.');
+                });
+        },
+        fetchHighDefeatCards() {
+            if (this.checkDateInput()) {
+                return;
+            }
+            
+            if (!this.lossRate) {
+                alert("Insira uma porcentagem de derrota!")
+                return;
+            }
+
+            const url = `/get-high-loss-rate-cards?percentage=${this.lossRate}&start_time=${this.startTime}&end_time=${this.endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.highDefeatCards = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar derrotas.', error);
+                    alert('Ocorreu um erro ao buscar as derrotas da carta!');
+                });
+
+        },
+        fetchCardPerformance() {
+            if (this.checkDateInput()) {
+                return;
+            }
+            
+            if (!this.cardName) {
+                alert("Insira o nome da sua carta!")
+                return;
+            }
+            if (!this.opponentCard) {
+                alert("Insira o nome da carta oponente!")
+                return;
+            }
+
+
+            const url = `/get-card-performance?card_name=${this.cardName}&opponent_card=${this.opponentCard}&start_time=${this.startTime}&end_time=${this.endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.cardPerformance = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar desempenho da carta.', error);
+                    alert('Ocorreu um erro ao buscar o desempenho da carta!');
+                });
+
+        },
+        fetchAllCardsPerformance() {
+            if (this.checkDateInput()) {
+                return;
+            }
+            
+            if (!this.opponentCardAll) {
+                alert("Insira o nome da carta oponente!")
+                return;
+            }
+
+
+            const url = `/get-all-card-performance?opponent_card=${this.opponentCardAll}&start_time=${this.startTime}&end_time=${this.endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.cardPerformanceAll = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar desempenho da carta.', error);
+                    alert('Ocorreu um erro ao buscar o desempenho da carta!');
+                });
+        },
+        fetchTrendingCards() {
+            if (this.checkDateInput()) {
+                return;
+            }
+
+            const url = `/get-trending-cards-usage?start_time=${this.startTime}&end_time=${this.endTime}`;
+
+            axios.get(url)
+                .then(response => {
+                    this.trendingCards = response.data;
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar cartas tendencia nesse intervalo de tempo.', error);
+                    alert('Ocorreu um erro ao buscar cartas tendencia nesse intervalo de tempo!');
+                });
+        },
+        toggleSection(section) {
+            for (let key in this.sections) {
+                this.sections[key] = (key === section) ? !this.sections[key] : false;
+            }
+        },
+        checkDateInput() {
+            if (!this.startTime || !this.endTime) {
+                alert('Por favor, selecione as datas de início e fim.');
+                return true;
+            }
+        }, 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;

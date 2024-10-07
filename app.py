@@ -264,15 +264,15 @@ def get_card_combos_with_win_rate_above(n, percentage, start_time, end_time):
         {"$unwind": "$team.cards"},
         {"$group": {
             "_id": {
-                "combo": {"$addToSet": "$team.cards.name"},
                 "player": "$team.tag"
             },
+            "combo": {"$push": "$team.cards.name"}, 
             "total_battles": {"$sum": 1},
             "wins": {"$sum": {"$cond": [{"$eq": ["$team.crowns", 3]}, 1, 0]}}
         }},
         {"$project": {
-            "combo": "$_id.combo",
-            "combo_size": {"$size": "$_id.combo"},
+            "combo": {"$slice": ["$combo", n]}, 
+            "combo_size": {"$size": {"$slice": ["$combo", n]}},
             "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 100]}]},
             "total_battles": 1,
             "wins": 1
@@ -286,6 +286,7 @@ def get_card_combos_with_win_rate_above(n, percentage, start_time, end_time):
     
     result = list(db['battles'].aggregate(pipeline))
     return result
+
 
 def get_cards_with_high_loss_rate(percentage, start_time, end_time):
     pipeline = [
@@ -314,33 +315,76 @@ def get_cards_with_high_loss_rate(percentage, start_time, end_time):
     result = list(db['battles'].aggregate(pipeline))
     return result
 
-def get_card_performance_against_opponent_type(card_name, opponent_type, start_time, end_time):
+def get_card_performance_against_opponent_card(card_name, opponent_card, start_time, end_time):
     pipeline = [
         {"$match": {
             "battleTime": {"$gte": start_time, "$lte": end_time},
             "team.cards.name": card_name
         }},
-        {"$unwind": "$opponent"},
+        {"$unwind": "$opponent"},      
         {"$unwind": "$opponent.cards"},
         {"$match": {
-            "opponent.strategyType": opponent_type
+            "opponent.cards.name": opponent_card
         }},
         {"$group": {
-            "_id": "$team.tag",
-            "total_battles": {"$sum": 1},
-            "wins": {"$sum": {"$cond": [{"$eq": ["$team.crowns", 3]}, 1, 0]}}
+            "_id": {
+                "team_card": card_name, 
+                "opponent_card": opponent_card
+            },
+            "total_battles": {"$sum": 1}, 
+            "wins": {"$sum": {"$cond": [{"$gt": ["$team.crowns", "$opponent.crowns"]}, 1, 0]}}
         }},
         {"$project": {
-            "player": "$_id",
-            "win_rate": {"$cond": [{"$eq": ["$total_battles", 0]}, 0, {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 100]}]},
+            "team_card": "$_id.team_card", 
+            "opponent_card": "$_id.opponent_card",
+            "win_rate": {"$cond": [
+                {"$eq": ["$total_battles", 0]},
+                0, 
+                {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 100]}
+            ]},
             "total_battles": 1,
             "wins": 1
         }},
-        {"$sort": {"win_rate": -1}} 
+        {"$sort": {"win_rate": -1}}
     ]
     
     result = list(db['battles'].aggregate(pipeline))
     return result
+
+def get_all_cards_performance_against_opponent_card(opponent_card, start_time, end_time):
+    pipeline = [
+        {"$match": {
+            "battleTime": {"$gte": start_time, "$lte": end_time}
+        }},
+        {"$unwind": "$team"}, 
+        {"$unwind": "$team.cards"}, 
+        {"$unwind": "$opponent"}, 
+        {"$unwind": "$opponent.cards"}, 
+        {"$match": {
+            "opponent.cards.name": opponent_card 
+        }},
+        {"$group": {
+            "_id": "$team.cards.name", 
+            "total_battles": {"$sum": 1}, 
+            "wins": {"$sum": {"$cond": [{"$gt": ["$team.crowns", "$opponent.crowns"]}, 1, 0]}}
+        }},
+        {"$project": {
+            "card_name": "$_id", 
+            "win_rate": {"$cond": [
+                {"$eq": ["$total_battles", 0]}, 
+                0, 
+                {"$multiply": [{"$divide": ["$wins", "$total_battles"]}, 100]} 
+            ]},
+            "total_battles": 1,
+            "wins": 1
+        }},
+        {"$sort": {"win_rate": -1}}
+    ]
+    
+    result = list(db['battles'].aggregate(pipeline))
+    return result
+
+
 
 def get_trending_cards_usage(start_time, end_time, interval):
     pipeline = [
@@ -351,8 +395,7 @@ def get_trending_cards_usage(start_time, end_time, interval):
         {"$unwind": "$team.cards"},
         {"$group": {
             "_id": {
-                "card_name": "$team.cards.name",
-                "time_interval": {"$toDate": {"$subtract": [{"$toLong": "$battleTime"}, {"$mod": [{"$toLong": "$battleTime"}, interval]}]}}
+                "card_name": "$team.cards.name"
             },
             "usage_count": {"$sum": 1}
         }},
@@ -486,6 +529,8 @@ def wins_with_conditions():
         trophy_difference_factor = (100 - trophy_percentage_difference) / 100
 
         wins = get_wins_with_conditions(card_name, trophy_difference_factor)
+        if wins == 0:
+            wins = "0"
         return jsonify(wins), 200
     except ValueError:
         return jsonify({"error": "O parâmetro trophy_percentage_difference deve ser um número."}), 400
@@ -529,29 +574,49 @@ def high_loss_rate_cards():
 def card_performance():
     try:
         card_name = request.args.get('card_name')
-        opponent_type = request.args.get('opponent_type')
+        opponent_card = request.args.get('opponent_card')
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
 
         start_time = datetime.fromisoformat(start_time)
         end_time = datetime.fromisoformat(end_time)
 
-        performance_data = get_card_performance_against_opponent_type(card_name, opponent_type, start_time, end_time)
+        performance_data = get_card_performance_against_opponent_card(card_name, opponent_card, start_time, end_time)
 
         return jsonify(performance_data)
     
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     
+
+@app.route('/get-all-card-performance', methods=['GET'])
+def all_card_performance():
+    try:
+        opponent_card = request.args.get('opponent_card')
+        start_time = request.args.get('start_time')
+        end_time = request.args.get('end_time')
+
+        start_time = datetime.fromisoformat(start_time)
+        end_time = datetime.fromisoformat(end_time)
+
+        performance_data = get_all_cards_performance_against_opponent_card(opponent_card, start_time, end_time)
+
+        return jsonify(performance_data)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    
+
 @app.route('/get-trending-cards-usage', methods=['GET'])
 def trending_cards_usage():
     try:
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
-        interval = int(request.args.get('interval'))
 
         start_time = datetime.fromisoformat(start_time)
         end_time = datetime.fromisoformat(end_time)
+        interval = end_time - start_time
+        interval = int(interval.total_seconds() * 1000)
 
         trending_usage_data = get_trending_cards_usage(start_time, end_time, interval)
 
